@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DPD / Topsort Integration</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #2d2d2d;
+      background: #fff;
+      line-height: 1.7;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 3rem 2rem;
+    }
+
+    /* ── Header ── */
+    .doc-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 0.5rem;
+    }
+    .doc-header img { height: 36px; }
+    .doc-header span { font-size: 1.5rem; color: #ccc; font-weight: 300; }
+    h1 { font-size: 1.75rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #888; font-size: 0.9rem; margin-bottom: 2.5rem; }
+
+    /* ── Sections ── */
+    h2 {
+      font-size: 1.2rem;
+      color: #dc0032;
+      margin: 2.5rem 0 0.75rem;
+      padding-bottom: 0.35rem;
+      border-bottom: 2px solid #f0f0f0;
+    }
+    h3 { font-size: 1rem; margin: 1.5rem 0 0.5rem; }
+    p { margin-bottom: 0.75rem; }
+    ol, ul { margin: 0.5rem 0 1rem 1.5rem; }
+    li { margin-bottom: 0.35rem; }
+
+    /* ── Code blocks ── */
+    pre {
+      background: #1e1e2e;
+      color: #cdd6f4;
+      border-radius: 8px;
+      padding: 1.25rem;
+      overflow-x: auto;
+      font-size: 0.8rem;
+      line-height: 1.6;
+      margin: 0.75rem 0 1.25rem;
+    }
+    code {
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    }
+    :not(pre) > code {
+      background: #f3f3f3;
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+      font-size: 0.85em;
+      color: #d63384;
+    }
+    .comment { color: #6c7086; }
+    .key { color: #89b4fa; }
+    .string { color: #a6e3a1; }
+    .number { color: #fab387; }
+
+    /* ── Screenshot placeholders ── */
+    .screenshot {
+      background: #fafafa;
+      border: 2px dashed #ddd;
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+      color: #aaa;
+      font-size: 0.85rem;
+      margin: 1rem 0;
+    }
+
+    /* ── Flow diagram ── */
+    .flow {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 1.25rem 0;
+      flex-wrap: wrap;
+    }
+    .flow-step {
+      background: #f5f5f5;
+      border-radius: 6px;
+      padding: 0.5rem 1rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .flow-step.highlight { background: #dc0032; color: #fff; }
+    .flow-arrow { color: #ccc; font-size: 1.2rem; }
+
+    /* ── Table ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.75rem 0 1.25rem;
+      font-size: 0.9rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid #eee;
+    }
+    th { font-weight: 600; color: #555; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* ── Footer ── */
+    .doc-footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 2px solid #f0f0f0;
+      font-size: 0.8rem;
+      color: #aaa;
+    }
+
+    @media print {
+      body { padding: 1rem; }
+      pre { font-size: 0.7rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="doc-header">
+    <img src="https://www.dpd.com/wp-content/themes/DPD_NoLogin/images/DPD_logo_redgrad_rgb_responsive.svg" alt="DPD">
+    <span>/</span>
+    <img src="https://cdn.prod.website-files.com/64761186cb9c6205851bddcb/682c3fbf39053e24fbbec176_topsort-icon.svg" alt="Topsort" height="32">
+  </div>
+  <h1>DPD / Topsort Integration</h1>
+  <p class="subtitle">Sponsored Banners &mdash; Integration Guide &amp; Reference</p>
+
+  <!-- ─────────────────────────────────── -->
+  <h2>1. Overview</h2>
+  <p>
+    This document demonstrates how DPD integrates Topsort's Auction & Events API
+    to serve sponsored banners on the DPD website. The integration consists of
+    three steps:
+  </p>
+
+  <div class="flow">
+    <div class="flow-step highlight">Auction</div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step">Render Banner</div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step highlight">Impression</div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step highlight">Click</div>
+  </div>
+
+  <table>
+    <tr><th>Step</th><th>Endpoint</th><th>When</th></tr>
+    <tr><td>Auction</td><td><code>POST /v2/auctions</code></td><td>On page load, before rendering the banner slot</td></tr>
+    <tr><td>Impression</td><td><code>POST /v2/events</code></td><td>When 50%+ of the banner is visible for 1 continuous second (IAB standard)</td></tr>
+    <tr><td>Click</td><td><code>POST /v2/events</code></td><td>When the user clicks the banner</td></tr>
+  </table>
+
+  <!-- ─────────────────────────────────── -->
+  <h2>2. Auction Request</h2>
+  <p>
+    A single API call returns the winning banner creative for a given placement.
+    The <code>slotId</code> identifies the placement, and <code>opaqueUserId</code> ties
+    the auction to the user session for frequency capping and audience targeting.
+  </p>
+
+  <h3>Request</h3>
+  <pre><code>POST https://api.topsort.com/v2/auctions
+
+{
+  <span class="key">"auctions"</span>: [
+    {
+      <span class="key">"type"</span>: <span class="string">"banners"</span>,
+      <span class="key">"slots"</span>: <span class="number">1</span>,
+      <span class="key">"slotId"</span>: <span class="string">"home"</span>,
+      <span class="key">"opaqueUserId"</span>: <span class="string">"557ca396-6bdc-44db-b5d8-08e8c70e81bf"</span>
+    }
+  ]
+}</code></pre>
+
+  <h3>Response</h3>
+  <pre><code>{
+  <span class="key">"results"</span>: [
+    {
+      <span class="key">"resultType"</span>: <span class="string">"banners"</span>,
+      <span class="key">"winners"</span>: [
+        {
+          <span class="key">"rank"</span>: <span class="number">1</span>,
+          <span class="key">"type"</span>: <span class="string">"vendor"</span>,
+          <span class="key">"id"</span>: <span class="string">"vendor1"</span>,
+          <span class="key">"resolvedBidId"</span>: <span class="string">"ZyahrwoQBp3lSX0N..."</span>,
+          <span class="key">"asset"</span>: [
+            {
+              <span class="key">"url"</span>: <span class="string">"https://topsortassets.com/asset_01kp654znz...json"</span>,
+              <span class="key">"content"</span>: {
+                <span class="key">"imageURL"</span>: <span class="string">"https://topsortassets.com/asset_01kp654qs1...png"</span>,
+                <span class="key">"redirectURL"</span>: <span class="string">"https://www.dpd.com/"</span>,
+                <span class="key">"altText"</span>: <span class="string">"Valentine's Day Sale – Up to 20% Off"</span>
+              }
+            }
+          ]
+        }
+      ],
+      <span class="key">"error"</span>: false
+    }
+  ]
+}</code></pre>
+
+  <p>
+    The <code>resolvedBidId</code> is the key value to retain &mdash; it links the auction
+    to subsequent impression and click events.
+  </p>
+
+  <!-- ─────────────────────────────────── -->
+  <h2>3. Fallback Banners</h2>
+  <p>
+    When an auction is scoped to product IDs that have no active campaigns,
+    Topsort returns <strong>fallback assets</strong>. These use a simpler response
+    shape &mdash; a direct <code>url</code> on the asset instead of a <code>content</code>
+    object.
+  </p>
+
+  <h3>Request</h3>
+  <pre><code>POST https://api.topsort.com/v2/auctions
+
+{
+  <span class="key">"auctions"</span>: [
+    {
+      <span class="key">"type"</span>: <span class="string">"banners"</span>,
+      <span class="key">"slots"</span>: <span class="number">2</span>,
+      <span class="key">"slotId"</span>: <span class="string">"home"</span>,
+      <span class="key">"opaqueUserId"</span>: <span class="string">"557ca396-6bdc-44db-b5d8-08e8c70e81bf"</span>,
+      <span class="key">"products"</span>: {
+        <span class="key">"ids"</span>: [<span class="string">"non-existing"</span>]
+      }
+    }
+  ]
+}</code></pre>
+
+  <h3>Response</h3>
+  <pre><code>{
+  <span class="key">"results"</span>: [
+    {
+      <span class="key">"resultType"</span>: <span class="string">"banners"</span>,
+      <span class="key">"winners"</span>: [
+        {
+          <span class="key">"rank"</span>: <span class="number">1</span>,
+          <span class="key">"type"</span>: <span class="string">"url"</span>,
+          <span class="key">"id"</span>: <span class="string">"https://www.dpd.com/"</span>,
+          <span class="key">"resolvedBidId"</span>: <span class="string">"xnXkqgoQBp3lSZML..."</span>,
+          <span class="key">"asset"</span>: [
+            {
+              <span class="key">"url"</span>: <span class="string">"https://assets.hosted.topsort.com/.../FallbackBanner2.png"</span>
+            }
+          ]
+        }
+      ],
+      <span class="key">"error"</span>: false
+    }
+  ]
+}</code></pre>
+
+  <p>
+    The rendering logic handles both shapes: if <code>asset[0].content</code> exists,
+    use <code>imageURL</code> / <code>redirectURL</code>; otherwise fall back to <code>asset[0].url</code>.
+  </p>
+
+  <!-- ─────────────────────────────────── -->
+  <h2>4. Event Reporting</h2>
+  <p>
+    Impressions and clicks are reported to the same endpoint with the
+    <code>resolvedBidId</code> from the auction. Each event requires a unique
+    <code>id</code> (UUID v4) and an ISO 8601 <code>occurredAt</code> timestamp.
+  </p>
+
+  <h3>Impression (IAB-compliant)</h3>
+  <p>
+    Fires when <strong>50%+ of the banner</strong> is visible in the viewport for
+    <strong>1 continuous second</strong>, implemented via <code>IntersectionObserver</code>.
+  </p>
+  <pre><code>POST https://api.topsort.com/v2/events
+
+{
+  <span class="key">"impressions"</span>: [
+    {
+      <span class="key">"id"</span>: <span class="string">"2770ca99-0ca3-47c9-8bce-0a1a682dce3c"</span>,
+      <span class="key">"occurredAt"</span>: <span class="string">"2026-04-14T15:03:44.264Z"</span>,
+      <span class="key">"opaqueUserId"</span>: <span class="string">"557ca396-6bdc-44db-b5d8-08e8c70e81bf"</span>,
+      <span class="key">"resolvedBidId"</span>: <span class="string">"ZyahrwoQBp3lSX0N..."</span>
+    }
+  ]
+}</code></pre>
+
+  <h3>Click</h3>
+  <pre><code>POST https://api.topsort.com/v2/events
+
+{
+  <span class="key">"clicks"</span>: [
+    {
+      <span class="key">"id"</span>: <span class="string">"7786bb66-1890-4225-8d73-d8975b956e3b"</span>,
+      <span class="key">"occurredAt"</span>: <span class="string">"2026-04-14T15:03:50.513Z"</span>,
+      <span class="key">"opaqueUserId"</span>: <span class="string">"557ca396-6bdc-44db-b5d8-08e8c70e81bf"</span>,
+      <span class="key">"resolvedBidId"</span>: <span class="string">"ZyahrwoQBp3lSX0N..."</span>
+    }
+  ]
+}</code></pre>
+
+  <!-- ─────────────────────────────────── -->
+  <h2>5. Demo Page</h2>
+  <p>
+    Below are screenshots of the sample DPD page with both banner placements
+    rendered via the Topsort API.
+  </p>
+
+  <div class="screenshot">
+    [ Screenshot: Full page &mdash; hero + sponsored banner from auction ]
+  </div>
+
+  <div class="screenshot">
+    [ Screenshot: Fallback banner placement below content cards ]
+  </div>
+
+  <!-- ─────────────────────────────────── -->
+  <h2>6. Key Integration Points</h2>
+  <table>
+    <tr><th>Field</th><th>Purpose</th></tr>
+    <tr><td><code>opaqueUserId</code></td><td>Ties auction, impressions, and clicks to the same user session. Can be a hashed anonymous ID or the authenticated user ID.</td></tr>
+    <tr><td><code>resolvedBidId</code></td><td>Returned by the auction. Must be forwarded to both impression and click events for proper attribution.</td></tr>
+    <tr><td><code>slotId</code></td><td>Identifies the placement on the page (e.g. <code>"home"</code>). Maps to the slot configured in Topsort.</td></tr>
+    <tr><td><code>id</code></td><td>Unique UUID per event call. Ensures idempotency and deduplication.</td></tr>
+  </table>
+
+  <!-- ─────────────────────────────────── -->
+  <div class="doc-footer">
+    <p>DPD / Topsort Integration &mdash; April 2026</p>
+  </div>
+
+</body>
+</html>
